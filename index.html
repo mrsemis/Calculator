@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Calculator v1</title>
+  <title>Calculator v4 - Keyboard support</title>
   <style>
     /* Baseline */
     * {
@@ -24,7 +24,7 @@
       user-select: none;
     }
 
-    /* Calculator box */
+    /* Calculator box - med runde hjørner */
     .calc-container {
       background: rgba(255,255,255,0.07);
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -37,12 +37,12 @@
       position: relative;
     }
 
-    /* Display */
+    /* Display - rundede hjørner + no overflow */
     #display {
       background: rgba(255,255,255,0.12);
       border-radius: 12px;
       padding: 20px 15px;
-      font-size: 28px;
+      font-size: 36px;
       text-align: right;
       margin-bottom: 25px;
       min-height: 48px;
@@ -50,6 +50,10 @@
       letter-spacing: 2px;
       box-shadow: inset 0 0 8px rgba(255,255,255,0.15);
       color: #fff;
+
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     /* Buttons grid */
@@ -121,7 +125,7 @@
 </head>
 <body>
 
-  <div class="calc-container">
+  <div class="calc-container" tabindex="0">
     <div id="display">0</div>
     <div class="btn-grid">
       <button class="btn-clear">C</button>
@@ -149,13 +153,11 @@
   </div>
 
   <script>
-    // Calculator logic
     const display = document.getElementById('display');
     const buttons = document.querySelectorAll('button');
     let current = '';
     let lastPressed = '';
 
-    // Helper for operations mapping
     const operationsMap = {
       '÷': '/',
       '×': '*',
@@ -169,69 +171,87 @@
 
     buttons.forEach(button => {
       button.addEventListener('click', () => {
-        const val = button.textContent;
+        handleInput(button.textContent);
+      });
+    });
 
-        if (val === 'C') {
-          current = '';
-          updateDisplay('0');
-          lastPressed = '';
-          return;
-        }
+    function handleInput(val) {
+      if (val === 'C') {
+        current = '';
+        updateDisplay('0');
+        lastPressed = '';
+        return;
+      }
 
-        if (val === '=') {
-          try {
-            // Replace special ops with JS ops
-            let expression = current;
-            for (const op in operationsMap) {
-              expression = expression.split(op).join(operationsMap[op]);
-            }
-            // Evaluate
-            let result = eval(expression);
-            if (result === Infinity || isNaN(result)) result = 'Error';
-            else result = Math.round(result * 1e12) / 1e12; // round to avoid float errors
-            updateDisplay(result);
-            current = result.toString();
-          } catch {
-            updateDisplay('Error');
-            current = '';
+      if (val === '=') {
+        try {
+          let expression = current;
+          for (const op in operationsMap) {
+            expression = expression.split(op).join(operationsMap[op]);
           }
-          lastPressed = '=';
-          return;
-        }
-
-        // If last pressed was '=' and user presses a number, reset
-        if (lastPressed === '=' && /[0-9.]/.test(val)) {
+          let result = eval(expression);
+          if (result === Infinity || isNaN(result)) result = 'Error';
+          else result = Math.round(result * 1e12) / 1e12;
+          updateDisplay(result);
+          current = result.toString();
+        } catch {
+          updateDisplay('Error');
           current = '';
-          updateDisplay('0');
-          lastPressed = '';
         }
+        lastPressed = '=';
+        return;
+      }
 
-        // Prevent multiple dots in a number
-        if (val === '.') {
-          // Find the last number in current string
-          let parts = current.split(/[\+\-\*\/]/);
-          let lastNum = parts[parts.length -1];
-          if (lastNum.includes('.')) return; // ignore second dot
+      if (lastPressed === '=' && /[0-9.]/.test(val)) {
+        current = '';
+        updateDisplay('0');
+        lastPressed = '';
+      }
+
+      if (val === '.') {
+        let parts = current.split(/[\+\-\*\/]/);
+        let lastNum = parts[parts.length -1];
+        if (lastNum.includes('.')) return;
+      }
+
+      if (/[+\-\*\/]/.test(operationsMap[val] || val)) {
+        if (current === '') return;
+        if (/[+\-\*\/]$/.test(current)) {
+          current = current.slice(0, -1) + operationsMap[val];
+        } else {
+          current += operationsMap[val];
         }
-
-        // Prevent multiple operators in a row
-        if (/[+\-\*\/]/.test(operationsMap[val] || val)) {
-          if (current === '') return; // no op at start
-          if (/[+\-\*\/]$/.test(current)) {
-            current = current.slice(0, -1) + operationsMap[val];
-          } else {
-            current += operationsMap[val];
-          }
-          updateDisplay(current.replace(/\*/g,'×').replace(/\//g,'÷'));
-          lastPressed = val;
-          return;
-        }
-
-        // Normal number or dot input
-        current += val;
         updateDisplay(current.replace(/\*/g,'×').replace(/\//g,'÷'));
         lastPressed = val;
-      });
+        return;
+      }
+
+      current += val;
+      updateDisplay(current.replace(/\*/g,'×').replace(/\//g,'÷'));
+      lastPressed = val;
+    }
+
+    window.addEventListener('keydown', e => {
+      const key = e.key;
+
+      if ((key >= '0' && key <= '9') || key === '.') {
+        handleInput(key);
+      } else if (key === 'Enter' || key === '=') {
+        e.preventDefault();
+        handleInput('=');
+      } else if (key === 'Backspace') {
+        // Slet sidste karakter
+        e.preventDefault();
+        if (current.length > 0) {
+          current = current.slice(0, -1);
+          updateDisplay(current === '' ? '0' : current.replace(/\*/g,'×').replace(/\//g,'÷'));
+        }
+      } else if (key === 'Escape') {
+        e.preventDefault();
+        handleInput('C');
+      } else if (key === '+' || key === '-' || key === '*' || key === '/') {
+        handleInput(key);
+      }
     });
 
     // Falling balls animation
